@@ -13,16 +13,34 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
 # %% Model
 class SentimentClassificationBert(nn.Module):
-    def __init__(self, model_name: str = MODEL_NAME, num_labels: int = 2):
+    def __init__(
+        self,
+        model_name: str = MODEL_NAME,
+        num_labels: int = 2,
+        hidden_dims: tuple[int, int] = (512, 256),
+        dropout: float = 0.1,
+    ):
         super().__init__()
         self.bert = AutoModel.from_pretrained(model_name, add_pooling_layer=False)
         self.bert.requires_grad_(False)
         self.bert.eval()
-        self.classifier = nn.Linear(self.bert.config.hidden_size, num_labels)
+
+        in_dim = self.bert.config.hidden_size
+        h1, h2 = hidden_dims
+        # 3 linear layers: 768 -> 512 -> 256 -> num_labels
+        self.classifier = nn.Sequential(
+            nn.Linear(in_dim, h1),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(h1, h2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(h2, num_labels),  # no activation: raw logits
+        )
 
     def train(self, mode: bool = True):
         super().train(mode)
-        # Keep the frozen encoder's dropout disabled while the head trains.
+        # Keep the frozen encoder's dropout disabled; the head's dropout still toggles.
         self.bert.eval()
         return self
 
